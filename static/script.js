@@ -31,7 +31,9 @@ function appendMessage(text, className) {
     const chatbox = document.getElementById('chatbox');
     const div = document.createElement('div');
     div.classList.add('message', className);
-    div.innerHTML = `<span>${text}</span>`;
+    // Convert newlines to <br> for multi-line responses
+    const formatted = text.replace(/\n/g, '<br>');
+    div.innerHTML = `<span>${formatted}</span>`;
     chatbox.appendChild(div);
     chatbox.scrollTop = chatbox.scrollHeight;
 }
