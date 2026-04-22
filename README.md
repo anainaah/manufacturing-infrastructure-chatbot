@@ -3,18 +3,15 @@ InfraChat is an industrial management platform that bridges the gap between comp
 
 ## Key Features
 
-#### Natural Language Interface (NLI): 
-Ask complex questions like "What is the RPM of Machine L47181?" and get instant, specific data retrieval.
+- Query any machine by Product ID (e.g. L47181)
+- 30+ supported natural language commands
+- Live dashboard with charts, KPIs and gauges
+- Risk scoring — Safe, Elevated, High Warning, Critical
+- Fuzzy string matching using Rapidfuzz
+- Typing indicator and quick reply chips
 
-### Intelligent Logic:
-Implements rapidfuzz for typo-tolerant command recognition and multi-variable extraction from single sentences.
-
-### Predictive Maintenance Dashboard:
-Real-time visualization of machine health, failure distributions, and operational KPIs (RPM, Torque, Tool Wear).
-
-### Industrial Robustness:
-Advanced error handling with pattern-based Machine ID validation and technical record auditing.
-
-### Cinematic UI/UX:
-High-end industrial aesthetic with "Breathing Glow" interactive elements and a fully responsive layout.
-
+## Tech Stack
+- Backend: Python / Flask
+- Data: Pandas, Rapidfuzz
+- Frontend: HTML5, CSS3, JavaScript, Chart.js
+- Dataset: Machine Predictive Maintenance Classification (Kaggle)
