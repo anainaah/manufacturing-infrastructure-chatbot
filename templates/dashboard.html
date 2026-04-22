@@ -3,183 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InfraChat - Dashboard</title>
+    <title>InfraChat | Control Console</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body style="background: url('https://images.unsplash.com/photo-1516937941344-00b4e0337589?auto=format&fit=crop&q=80&w=2070') fixed center; background-size: cover;">
 
-    <!-- Navbar -->
-    <nav class="navbar">
-        <div class="nav-logo">⚙️ InfraChat</div>
+    <!-- Background Layer (Frosted Glass) -->
+    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(8px); z-index: -1;"></div>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <div class="nav-logo">⚙️ <b>infrachat<span>.sys</span></b></div>
         <div class="nav-links">
-            <a href="/">Home</a>
-            <a href="/#about">About</a>
-            <a href="/#machines">Machines</a>
-            <a href="/dashboard" class="active-link">Dashboard</a>
-            <a href="/#contact">Contact</a>
+          <a href="/"><i class="fas fa-house"></i> Home</a>
+          <a href="/dashboard" class="active-link"><i class="fas fa-gauge-high"></i> Dashboard</a>
+          <a href="/#about"><i class="fas fa-circle-info"></i> About</a>
+          <a href="/#machines"><i class="fas fa-layer-group"></i> Machines</a>
+          <a href="/#contact"><i class="fas fa-headset"></i> Contact Us</a>
         </div>
-    </nav>
-
-    <!-- Dashboard -->
-    <div class="dashboard">
-
-        <div class="dashboard-header">
-            <div>
-                <h1>📊 Analytics Dashboard</h1>
-                <p class="dashboard-subtitle">Real-time insights from your manufacturing infrastructure</p>
-            </div>
-            <div class="dashboard-actions">
-                <span class="live-badge">● Live Data</span>
-                <button class="refresh-btn" onclick="loadDashboard()">🔄 Refresh</button>
-            </div>
+        <div style="margin-top: auto; padding: 24px; background: rgba(8, 145, 178, 0.05); border-radius: 20px; border: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 800;">Status</div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--accent);"><i class="fas fa-shield-halved"></i> Safe & Secure</div>
         </div>
+    </aside>
 
-        <div class="loading-overlay" id="loadingOverlay">
-            <div class="spinner"></div>
-            <p>Loading dashboard data...</p>
-        </div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <button class="menu-toggle" id="menuToggle"><i class="fas fa-bars"></i></button>
 
-        <div class="kpi-row">
-            <div class="kpi-card kpi-total">
-                <div class="kpi-icon">🔧</div>
-                <div class="kpi-info">
-                    <span class="kpi-label">Total Machines</span>
-                    <span class="kpi-value" id="kpiTotal">—</span>
-                </div>
-            </div>
-            <div class="kpi-card kpi-working">
-                <div class="kpi-icon">✅</div>
-                <div class="kpi-info">
-                    <span class="kpi-label">Working</span>
-                    <span class="kpi-value" id="kpiWorking">—</span>
-                </div>
-            </div>
-            <div class="kpi-card kpi-failed">
-                <div class="kpi-icon">❌</div>
-                <div class="kpi-info">
-                    <span class="kpi-label">Failed</span>
-                    <span class="kpi-value" id="kpiFailed">—</span>
-                </div>
-            </div>
-            <div class="kpi-card kpi-rate">
-                <div class="kpi-icon">📉</div>
-                <div class="kpi-info">
-                    <span class="kpi-label">Failure Rate</span>
-                    <span class="kpi-value" id="kpiRate">—</span>
-                </div>
-            </div>
-        </div>
+    <div class="layout-content">
+        <div class="dashboard">
 
-        <div class="stats-row">
-            <div class="stat-pill">
-                <span class="stat-pill-label">🌡️ Avg Air Temp</span>
-                <span class="stat-pill-value" id="statAirTemp">—</span>
+            <!-- Premium Console Header -->
+            <div class="dashboard-header">
+                <div>
+                    <h1 style="color: var(--primary);">Dashboard Overview</h1>
+                    <p style="color: var(--secondary); font-weight: 500; font-size: 16px;">Live Machine Data and Reports</p>
+                </div>
+                <div style="display: flex; gap: 20px; align-items: center;">
+                    <div style="text-align: right;">
+                        <div style="color: var(--success); font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 8px; justify-content: flex-end;">
+                            <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; display: inline-block;"></span> LIVE DATA STREAM
+                        </div>
+                        <div style="color: var(--muted); font-size: 11px; font-weight: 600;">Last Update: <span id="syncTime">Just Now</span></div>
+                    </div>
+                    <button class="btn-primary" onclick="loadDashboard()" style="padding: 14px 28px;"><i class="fas fa-rotate"></i> Sync Data</button>
+                </div>
             </div>
-            <div class="stat-pill">
-                <span class="stat-pill-label">🔥 Avg Process Temp</span>
-                <span class="stat-pill-value" id="statProcessTemp">—</span>
-            </div>
-            <div class="stat-pill">
-                <span class="stat-pill-label">⚡ Avg RPM</span>
-                <span class="stat-pill-value" id="statRPM">—</span>
-            </div>
-            <div class="stat-pill">
-                <span class="stat-pill-label">🔩 Avg Torque</span>
-                <span class="stat-pill-value" id="statTorque">—</span>
-            </div>
-            <div class="stat-pill">
-                <span class="stat-pill-label">⚠️ High Wear</span>
-                <span class="stat-pill-value" id="statHighWear">—</span>
-            </div>
-        </div>
 
-        <div class="charts-row">
-            <div class="chart-card">
-                <h3>Machine Status</h3>
-                <p class="chart-desc">Working vs Failed machines</p>
-                <div class="chart-container chart-container-doughnut">
-                    <canvas id="statusChart"></canvas>
+            <!-- Operational KPIs -->
+            <div class="kpi-row">
+                <div class="kpi-card reveal">
+                    <div class="kpi-icon"><i class="fas fa-server"></i></div>
+                    <div>
+                        <span class="stat-label" style="font-size: 11px; color: var(--muted); text-transform: uppercase;">Total Machines</span>
+                        <div class="card-number" id="kpiTotal" style="font-size: 32px; margin: 0; letter-spacing: -1px;">—</div>
+                    </div>
+                </div>
+                <div class="kpi-card reveal delay-1">
+                    <div class="kpi-icon" style="color: var(--success); background: #dcfce7;"><i class="fas fa-circle-check"></i></div>
+                    <div>
+                        <span class="stat-label" style="font-size: 11px; color: var(--muted); text-transform: uppercase;">Working Fine</span>
+                        <div class="card-number" id="kpiWorking" style="color: var(--success); font-size: 32px; margin: 0; letter-spacing: -1px;">—</div>
+                    </div>
+                </div>
+                <div class="kpi-card reveal delay-2">
+                    <div class="kpi-icon" style="color: var(--danger); background: #fee2e2;"><i class="fas fa-circle-exclamation"></i></div>
+                    <div>
+                        <span class="stat-label" style="font-size: 11px; color: var(--muted); text-transform: uppercase;">Needs Repair</span>
+                        <div class="card-number" id="kpiFailed" style="color: var(--danger); font-size: 32px; margin: 0; letter-spacing: -1px;">—</div>
+                    </div>
+                </div>
+                <div class="kpi-card reveal delay-3">
+                    <div class="kpi-icon" style="color: var(--warning); background: #fef3c7;"><i class="fas fa-chart-line"></i></div>
+                    <div>
+                        <span class="stat-label" style="font-size: 11px; color: var(--muted); text-transform: uppercase;">Risk Score</span>
+                        <div class="card-number" id="kpiRate" style="font-size: 32px; margin: 0; letter-spacing: -1px;">—</div>
+                    </div>
                 </div>
             </div>
-            <div class="chart-card">
-                <h3>Failure Types</h3>
-                <p class="chart-desc">Distribution of failure categories</p>
-                <div class="chart-container">
-                    <canvas id="failureChart"></canvas>
-                </div>
-            </div>
-        </div>
 
-        <div class="charts-row">
-            <div class="chart-card">
-                <h3>Machine Quality Types</h3>
-                <p class="chart-desc">Low / Medium / High quality distribution</p>
-                <div class="chart-container chart-container-doughnut">
-                    <canvas id="typeChart"></canvas>
+            <!-- Real-time Visuals -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
+                <div class="chart-card reveal">
+                    <h3>Velocity Profile (AVG RPM)</h3>
+                    <div style="height: 250px; position: relative; display: flex; align-items: center; justify-content: center;">
+                        <canvas id="speedGauge"></canvas>
+                        <div style="position: absolute; text-align: center; margin-top: 30px;">
+                            <div id="speedText" style="font-size: 36px; font-weight: 800; color: var(--primary);">0</div>
+                            <div style="font-size: 11px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Average RPM</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card reveal delay-1">
+                    <h3>Load Profile (AVG Nm)</h3>
+                    <div style="height: 250px; position: relative; display: flex; align-items: center; justify-content: center;">
+                        <canvas id="torqueGauge"></canvas>
+                        <div style="position: absolute; text-align: center; margin-top: 30px;">
+                            <div id="torqueText" style="font-size: 36px; font-weight: 800; color: var(--primary);">0</div>
+                            <div style="font-size: 11px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Average Torque</div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="chart-card">
-                <h3>Tool Wear Distribution</h3>
-                <p class="chart-desc">Tool wear grouped by minute ranges</p>
-                <div class="chart-container">
-                    <canvas id="wearChart"></canvas>
-                </div>
-            </div>
-        </div>
 
-        <div class="table-card">
-            <div class="table-header">
-                <h3>📋 Sample Machine Data</h3>
-                <p class="chart-desc">First 20 records from the dataset</p>
+            <div class="charts-row">
+                <div class="chart-card reveal">
+                    <h3>Fleet Diagnostic Breakdown</h3>
+                    <div style="height: 350px;">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card reveal delay-1">
+                    <h3>Failure Mode Taxonomy</h3>
+                    <div style="height: 350px;">
+                        <canvas id="failureChart"></canvas>
+                    </div>
+                </div>
             </div>
-            <div class="table-wrapper">
-                <table class="data-table" id="dataTable">
-                    <thead>
-                        <tr>
-                            <th>UDI</th>
-                            <th>Product ID</th>
-                            <th>Type</th>
-                            <th>Air Temp (K)</th>
-                            <th>Process Temp (K)</th>
-                            <th>RPM</th>
-                            <th>Torque (Nm)</th>
-                            <th>Tool Wear (min)</th>
-                            <th>Status</th>
-                            <th>Failure Type</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
+
+            <!-- Granular Data Stream -->
+            <div class="table-card reveal">
+                <div style="padding-bottom: 30px; border-bottom: 1px solid var(--border); margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <h3 style="margin: 0; color: var(--primary);">Machine Updates</h3>
+                        <p style="color: var(--muted); font-size: 13px; font-weight: 600; margin-top: 5px;">Recent data and messages from your machines</p>
+                    </div>
+                    <div style="font-size: 12px; font-weight: 800; color: var(--accent); background: var(--bg-glass-accent); padding: 8px 16px; border-radius: 10px; border: 1px solid var(--border-accent);">
+                        <i class="fas fa-database"></i> Live Machine Data
+                    </div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>Machine ID</th>
+                                <th>Product ID</th>
+                                <th>Tier</th>
+                                <th>Air Temp</th>
+                                <th>RPM</th>
+                                <th>Torque</th>
+                                <th>Wear</th>
+                                <th>Status</th>
+                                <th>Risk Analysis</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Populated via System Script -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-left">
-                <h3>⚙️ InfraChat</h3>
-                <p>Manufacturing Infrastructure System</p>
+    <!-- Loading Preloader -->
+    <div id="loadingOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.5s;">
+        <div style="font-size: 40px; color: var(--accent); margin-bottom: 20px;">⚙️</div>
+        <div style="font-size: 14px; font-weight: 800; color: var(--primary); letter-spacing: 3px; text-transform: uppercase;">Syncing Machine Data...</div>
+    </div>
+
+    <!-- Premium Chatbot Trigger -->
+    <div class="chat-btn" onclick="toggleChat()"><i class="fas fa-robot"></i></div>
+
+    <!-- Floating Assistant Window -->
+    <div class="chat-window" id="chatWindow">
+        <div class="chat-header">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="width: 12px; height: 12px; background: var(--success); border-radius: 50%; box-shadow: 0 0 10px var(--success);"></div>
+                <div>
+                    <h4 style="margin: 0; font-size: 20px; letter-spacing: -0.5px; font-weight: 800;">infrachat</h4>
+                    <span style="font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.6); font-weight: 800;">Here to help you</span>
+                </div>
             </div>
-            <div class="footer-middle">
-                <h4>Quick Links</h4>
-                <a href="/">Home</a>
-                <a href="/dashboard">Dashboard</a>
-                <a href="/#contact">Contact</a>
-            </div>
-            <div class="footer-right">
-                <h4>Contact</h4>
-                <p>📧 infrachat@manufacturing.com</p>
-                <p>📞 +91 9876543210</p>
-                <p>📍 Kerala, India</p>
+            <i class="fas fa-xmark" style="cursor: pointer;" onclick="toggleChat()"></i>
+        </div>
+        <div class="chatbox" id="chatbox">
+            <div class="message bot-message">
+                <span> 👋 Hello! I am **InfraChat**. How can I help you today? Ask about your machines or pick a topic below.</span>
+                <div class="chat-chips">
+                    <div class="chip" onclick="quickQuery('show summary')">📊 Performance</div>
+                    <div class="chip" onclick="quickQuery('failed machines')">❌ Machine Issues</div>
+                    <div class="chip" onclick="quickQuery('help')">❓ Help Me</div>
+                </div>
             </div>
         </div>
-        <div class="footer-bottom">
-            <p>© 2026 InfraChat. All rights reserved.</p>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Ask a question..." />
+            <button onclick="sendMessage()">Send</button>
         </div>
-    </footer>
+    </div>
 
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

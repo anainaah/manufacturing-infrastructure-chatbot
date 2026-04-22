@@ -1,47 +1,64 @@
 let statusChartInstance = null;
 let failureChartInstance = null;
-let typeChartInstance = null;
-let wearChartInstance = null;
+let speedGaugeInstance = null;
+let torqueGaugeInstance = null;
 
-const COLORS = {
-    chartBg: [
-        'rgba(79, 195, 247, 0.85)',
-        'rgba(239, 83, 80, 0.85)',
-        'rgba(255, 167, 38, 0.85)',
-        'rgba(171, 71, 188, 0.85)',
-        'rgba(38, 166, 154, 0.85)',
-        'rgba(236, 64, 122, 0.85)'
-    ],
-    chartBorder: ['#4fc3f7','#ef5350','#ffa726','#ab47bc','#26a69a','#ec407a']
+const THEME = {
+    accent: '#0891b2',
+    accentLight: '#22d3ee',
+    primary: '#0f172a',
+    muted: '#94a3b8',
+    success: '#10b981',
+    danger: '#ef4444',
+    warning: '#f59e0b',
+    grid: 'rgba(15, 23, 42, 0.04)',
+    colors: ['#0891b2', '#0f172a', '#64748b', '#22d3ee', '#1e293b']
 };
 
 document.addEventListener('DOMContentLoaded', loadDashboard);
 
 function loadDashboard() {
     const overlay = document.getElementById('loadingOverlay');
-    overlay.style.display = 'flex';
+    if (overlay) {
+        overlay.style.opacity = '1';
+        overlay.style.display = 'flex';
+    }
 
     fetch('/api/dashboard-data')
         .then(res => res.json())
         .then(data => {
             updateKPIs(data);
-            updateStats(data);
             renderStatusChart(data);
             renderFailureChart(data);
-            renderTypeChart(data);
-            renderWearChart(data);
+            renderSpeedGauge(data.avg_rpm);
+            renderTorqueGauge(data.avg_torque);
             renderTable(data.sample_data);
-            overlay.style.display = 'none';
+            
+            if (overlay) {
+                overlay.style.opacity = '0';
+                setTimeout(() => overlay.style.display = 'none', 500);
+            }
+            initReveals();
         })
         .catch(err => {
-            console.error('Dashboard load error:', err);
-            overlay.innerHTML = '<p style="color:#ef5350;">Failed to load data. Make sure Flask is running.</p>';
+            console.error('Data Sync Error:', err);
+            if (overlay) overlay.innerHTML = '<div style="color:red">SYNC FAILED: TIMEOUT</div>';
         });
 }
 
-function animateValue(el, target, suffix = '') {
+function updateKPIs(data) {
+    animateValue('kpiTotal', data.total);
+    animateValue('kpiWorking', data.working);
+    animateValue('kpiFailed', data.failed);
+    const rateEl = document.getElementById('kpiRate');
+    if (rateEl) rateEl.textContent = data.failure_rate + '%';
+}
+
+function animateValue(id, target) {
+    const el = document.getElementById(id);
+    if (!el) return;
     let current = 0;
-    const duration = 1000;
+    const duration = 2000;
     const step = target / (duration / 16);
     const timer = setInterval(() => {
         current += step;
@@ -49,23 +66,8 @@ function animateValue(el, target, suffix = '') {
             current = target;
             clearInterval(timer);
         }
-        el.textContent = Math.floor(current).toLocaleString() + suffix;
+        el.textContent = Math.floor(current).toLocaleString();
     }, 16);
-}
-
-function updateKPIs(data) {
-    animateValue(document.getElementById('kpiTotal'), data.total);
-    animateValue(document.getElementById('kpiWorking'), data.working);
-    animateValue(document.getElementById('kpiFailed'), data.failed);
-    document.getElementById('kpiRate').textContent = data.failure_rate + '%';
-}
-
-function updateStats(data) {
-    document.getElementById('statAirTemp').textContent = data.avg_air_temp + ' K';
-    document.getElementById('statProcessTemp').textContent = data.avg_process_temp + ' K';
-    document.getElementById('statRPM').textContent = Math.floor(data.avg_rpm).toLocaleString();
-    document.getElementById('statTorque').textContent = data.avg_torque + ' Nm';
-    document.getElementById('statHighWear').textContent = data.high_wear_count.toLocaleString();
 }
 
 function renderStatusChart(data) {
@@ -74,17 +76,20 @@ function renderStatusChart(data) {
     statusChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Working', 'Failed'],
+            labels: ['STABLE', 'FAULTED'],
             datasets: [{
                 data: [data.working, data.failed],
-                backgroundColor: ['rgba(76,175,80,0.85)', 'rgba(239,83,80,0.85)'],
-                borderColor: ['#4caf50', '#ef5350'],
-                borderWidth: 2, hoverOffset: 8
+                backgroundColor: [THEME.success, THEME.danger],
+                hoverBackgroundColor: [THEME.success, THEME.danger],
+                borderWidth: 0,
+                weight: 1
             }]
         },
         options: {
-            responsive: true, maintainAspectRatio: false, cutout: '65%',
-            plugins: { legend: { position: 'bottom', labels: { padding: 20, font: { size: 13 } } } }
+            responsive: true, maintainAspectRatio: false, cutout: '85%',
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, font: { family: "'Plus Jakarta Sans'", weight: '800', size: 12 }, padding: 30 } }
+            }
         }
     });
 }
@@ -92,92 +97,111 @@ function renderStatusChart(data) {
 function renderFailureChart(data) {
     if (failureChartInstance) failureChartInstance.destroy();
     const ctx = document.getElementById('failureChart').getContext('2d');
+    
     failureChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: data.failure_types.labels,
             datasets: [{
-                label: 'Count', data: data.failure_types.values,
-                backgroundColor: COLORS.chartBg, borderColor: COLORS.chartBorder,
-                borderWidth: 2, borderRadius: 6, borderSkipped: false
+                label: 'FAULT NODES',
+                data: data.failure_types.values,
+                backgroundColor: THEME.accent,
+                borderRadius: 12,
+                barThickness: 24
             }]
         },
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.06)' } },
-                x: { grid: { display: false }, ticks: { maxRotation: 45 } }
+                y: { grid: { color: THEME.grid }, ticks: { font: { weight: '600' }, color: THEME.muted } },
+                x: { grid: { display: false }, ticks: { font: { weight: '700' }, color: THEME.muted } }
             }
         }
     });
 }
 
-function renderTypeChart(data) {
-    if (typeChartInstance) typeChartInstance.destroy();
-    const ctx = document.getElementById('typeChart').getContext('2d');
-    typeChartInstance = new Chart(ctx, {
+function renderSpeedGauge(val) {
+    if (speedGaugeInstance) speedGaugeInstance.destroy();
+    const ctx = document.getElementById('speedGauge').getContext('2d');
+    document.getElementById('speedText').textContent = Math.round(val);
+    
+    speedGaugeInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: data.machine_types.labels,
             datasets: [{
-                data: data.machine_types.values,
-                backgroundColor: ['rgba(79,195,247,0.85)','rgba(255,167,38,0.85)','rgba(171,71,188,0.85)'],
-                borderColor: ['#4fc3f7','#ffa726','#ab47bc'],
-                borderWidth: 2, hoverOffset: 8
+                data: [val, 3000 - val],
+                backgroundColor: [THEME.primary, 'rgba(0,0,0,0.05)'],
+                borderWidth: 0,
+                circumference: 220,
+                rotation: 250,
+                borderRadius: 15
             }]
         },
         options: {
-            responsive: true, maintainAspectRatio: false, cutout: '65%',
-            plugins: { legend: { position: 'bottom', labels: { padding: 20, font: { size: 13 } } } }
+            responsive: true, maintainAspectRatio: false, cutout: '90%',
+            plugins: { tooltip: { enabled: false }, legend: { display: false } },
+            animation: { animateRotate: true, duration: 2500 }
         }
     });
 }
 
-function renderWearChart(data) {
-    if (wearChartInstance) wearChartInstance.destroy();
-    const ctx = document.getElementById('wearChart').getContext('2d');
-    wearChartInstance = new Chart(ctx, {
-        type: 'bar',
+function renderTorqueGauge(val) {
+    if (torqueGaugeInstance) torqueGaugeInstance.destroy();
+    const ctx = document.getElementById('torqueGauge').getContext('2d');
+    document.getElementById('torqueText').textContent = val.toFixed(1);
+
+    torqueGaugeInstance = new Chart(ctx, {
+        type: 'doughnut',
         data: {
-            labels: data.tool_wear.labels,
             datasets: [{
-                label: 'Machines', data: data.tool_wear.values,
-                backgroundColor: 'rgba(79,195,247,0.7)', borderColor: '#4fc3f7',
-                borderWidth: 2, borderRadius: 6, borderSkipped: false
+                data: [val, 80 - val],
+                backgroundColor: [THEME.accent, 'rgba(0,0,0,0.05)'],
+                borderWidth: 0,
+                circumference: 220,
+                rotation: 250,
+                borderRadius: 15
             }]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.06)' } },
-                x: { grid: { display: false } }
-            }
+            responsive: true, maintainAspectRatio: false, cutout: '90%',
+            plugins: { tooltip: { enabled: false }, legend: { display: false } },
+            animation: { animateRotate: true, duration: 2500 }
         }
     });
 }
 
 function renderTable(rows) {
     const tbody = document.getElementById('tableBody');
+    if (!tbody) return;
     tbody.innerHTML = '';
+    
     rows.forEach(row => {
-        const statusBadge = row['Target'] === 1
-            ? '<span class="badge badge-failed">Failed</span>'
-            : '<span class="badge badge-working">Working</span>';
         const tr = document.createElement('tr');
+        const statusBadge = row['Target'] === 1 ? 'badge-failed' : 'badge-working';
+        const risk = (row['Risk'] || 'Safe').toUpperCase();
+        
         tr.innerHTML = `
-            <td>${row['UDI']}</td>
-            <td>${row['Product ID']}</td>
-            <td><span class="badge badge-type">${row['Type']}</span></td>
-            <td>${row['Air temperature [K]']}</td>
-            <td>${row['Process temperature [K]']}</td>
-            <td>${row['Rotational speed [rpm]']}</td>
-            <td>${row['Torque [Nm]']}</td>
-            <td>${row['Tool wear [min]']}</td>
-            <td>${statusBadge}</td>
-            <td>${row['Failure Type']}</td>
+            <td style="font-family:'JetBrains Mono'; font-size:12px; font-weight:800;">#${row['UDI']}</td>
+            <td><b>${row['Product ID']}</b></td>
+            <td style="font-size:12px; font-weight:800; color:var(--accent);">${row['Type']}</td>
+            <td>${row['Air temperature [K]']}K</td>
+            <td style="font-family:'JetBrains Mono';">${Math.round(row['Rotational speed [rpm]'])}</td>
+            <td style="font-family:'JetBrains Mono';">${row['Torque [Nm]']}</td>
+            <td style="font-family:'JetBrains Mono';">${row['Tool wear [min]']}m</td>
+            <td><span class="badge ${statusBadge}">${row['Target'] === 1 ? 'FAULT' : 'STABLE'}</span></td>
+            <td><span style="font-size:11px; font-weight:800; opacity:0.6;">${risk}</span></td>
         `;
         tbody.appendChild(tr);
     });
+}
+
+function initReveals() {
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) entry.target.classList.add('active');
+        });
+    }, { threshold: 0.1 });
+    reveals.forEach(r => observer.observe(r));
 }

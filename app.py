@@ -5,6 +5,28 @@ from rapidfuzz import fuzz, process
 app = Flask(__name__)
 df = pd.read_csv('data/predictive_maintenance.csv')
 
+# Simple in-memory session context (In a real app, use Flask sessions or a DB)
+SESSION_CONTEXT = {
+    'last_machine_id': None
+}
+
+def calculate_risk_status(machine):
+    """Calculates a machine's health status based on sensor thresholds."""
+    if machine['Target'] == 1:
+        return "Critical (Failed)"
+    
+    # Heuristic risk scoring
+    risk_points = 0
+    if machine['Tool wear [min]'] > 200: risk_points += 2
+    elif machine['Tool wear [min]'] > 150: risk_points += 1
+    
+    if machine['Air temperature [K]'] > 300: risk_points += 1
+    if machine['Torque [Nm]'] > 60: risk_points += 1
+    
+    if risk_points >= 3: return "High Warning"
+    if risk_points >= 1: return "Elevated"
+    return "Safe"
+
 # ============================================================
 # Define all available commands with keywords for fuzzy matching
 # ============================================================
@@ -75,12 +97,31 @@ def get_response(query):
             word_upper = word.upper()
             if word_upper in df['Product ID'].values:
                 machine = df[df['Product ID'] == word_upper].iloc[0]
-                status = 'Failed' if machine['Target'] == 1 else 'Working'
-                return (f"Machine {word_upper}:\n"
-                        f"Type: {machine['Type']} | Status: {status}\n"
-                        f"Air Temp: {machine['Air temperature [K]']}K | Process Temp: {machine['Process temperature [K]']}K\n"
-                        f"RPM: {machine['Rotational speed [rpm]']} | Torque: {machine['Torque [Nm]']}Nm\n"
-                        f"Tool Wear: {machine['Tool wear [min]']}min | Failure: {machine['Failure Type']}")
+                SESSION_CONTEXT['last_machine_id'] = word_upper
+                status = '🔴 Failed' if machine['Target'] == 1 else '🟢 Working'
+                risk = calculate_risk_status(machine)
+                
+                return (f"📡 <b>Machine {word_upper} Details:</b><br>"
+                        f"• Type: {machine['Type']} | Status: {status}<br>"
+                        f"• <b>Risk Status: {risk}</b><br>"
+                        f"• Air Temp: {machine['Air temperature [K]']}K | Process Temp: {machine['Process temperature [K]']}K<br>"
+                        f"• RPM: {machine['Rotational speed [rpm]']} | Torque: {machine['Torque [Nm]']}Nm<br>"
+                        f"• Tool Wear: {machine['Tool wear [min]']}min | Failure: {machine['Failure Type']}")
+
+        # Contextual follow-up logic
+        if SESSION_CONTEXT['last_machine_id']:
+            mid = SESSION_CONTEXT['last_machine_id']
+            machine = df[df['Product ID'] == mid].iloc[0]
+            
+            if any(k in query for k in ['temp', 'heat', 'hot', 'temperature']):
+                return f"🌡️ The air temperature for machine <b>{mid}</b> is {machine['Air temperature [K]']}K and process temperature is {machine['Process temperature [K]']}K."
+            if any(k in query for k in ['rpm', 'speed', 'fast']):
+                return f"⚡ Machine <b>{mid}</b> is running at {machine['Rotational speed [rpm]']} RPM."
+            if any(k in query for k in ['wear', 'tool']):
+                return f"🔧 Current tool wear for machine <b>{mid}</b> is {machine['Tool wear [min]']} minutes."
+            if any(k in query for k in ['risk', 'health', 'condition']):
+                risk = calculate_risk_status(machine)
+                return f"🛡️ The health status for machine <b>{mid}</b> is currently: <b>{risk}</b>."
         
         return "Sorry, I didn't understand that. Type 'help' to see available commands."
     
@@ -310,8 +351,19 @@ def dashboard_data():
     sample_cols = ['UDI', 'Product ID', 'Type', 'Air temperature [K]', 
                    'Process temperature [K]', 'Rotational speed [rpm]', 
                    'Torque [Nm]', 'Tool wear [min]', 'Target', 'Failure Type']
-    sample = df[sample_cols].head(20).to_dict(orient='records')
+    
+    # Calculate Risk Score for each machine in sample
+    sample_df = df[sample_cols].head(50).copy()
+    sample_df['Risk'] = sample_df.apply(calculate_risk_status, axis=1)
+    sample = sample_df.to_dict(orient='records')
 
+    # Get Top 5 Highest Risk Machines (Excluding failed ones)
+    risk_priority = {'High Warning': 3, 'Elevated': 2, 'Safe': 1, 'Critical (Failed)': 0}
+    df_copy = df.copy()
+    df_copy['Risk'] = df_copy.apply(calculate_risk_status, axis=1)
+    df_copy['Risk_Val'] = df_copy['Risk'].map(risk_priority)
+    critical_machines = df_copy[df_copy['Target'] == 0].sort_values('Risk_Val', ascending=False).head(5)
+    
     return jsonify({
         'total': total,
         'working': working,
@@ -325,7 +377,8 @@ def dashboard_data():
         'failure_types': failure_types,
         'machine_types': machine_types,
         'tool_wear': tool_wear,
-        'sample_data': sample
+        'sample_data': sample,
+        'at_risk': critical_machines[sample_cols + ['Risk']].to_dict(orient='records')
     })
 
 @app.route('/chat', methods=['POST'])
