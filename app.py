@@ -87,28 +87,59 @@ def find_best_command(query):
 def get_response(query):
     query = query.lower().strip()
     
-    # Try to find best matching command using fuzzy matching
+    # 1. NEW: Check if there is a Product ID ANYWHERE in the query first
+    id_found = None
+    potential_invalid_id = None
+    query_words = query.split()
+    
+    import re
+    id_pattern = re.compile(r'^[LMH]\d{4,6}$') # Matches L, M, or H followed by 4-6 digits
+
+    for word in query_words:
+        word_upper = word.upper()
+        if word_upper in df['Product ID'].values:
+            id_found = word_upper
+            break
+        elif id_pattern.match(word_upper):
+            potential_invalid_id = word_upper
+
+    # 1b. Robustness: If a word looks like an ID but isn't in our records
+    if not id_found and potential_invalid_id:
+        return (f"❌ <b>Machine ID '{potential_invalid_id}' was not found in our records.</b><br>"
+                f"Please verify the ID or type 'help' to see all available commands.")
+
+    # 2. If ID is found, handle machine-specific queries (including metrics)
+    if id_found:
+        machine = df[df['Product ID'] == id_found].iloc[0]
+        SESSION_CONTEXT['last_machine_id'] = id_found
+        status = '🔴 Failed' if machine['Target'] == 1 else '🟢 Working'
+        risk = calculate_risk_status(machine)
+
+        # Check for specific metric keywords in the same message
+        if any(k in query for k in ['temp', 'heat', 'hot', 'temperature']):
+            return f"🌡️ The air temperature for machine <b>{id_found}</b> is {machine['Air temperature [K]']}K and process temperature is {machine['Process temperature [K]']}K."
+        if any(k in query for k in ['rpm', 'speed', 'fast']):
+            return f"⚡ Machine <b>{id_found}</b> is running at {machine['Rotational speed [rpm]']} RPM."
+        if any(k in query for k in ['wear', 'tool']):
+            return f"🔧 Current tool wear for machine <b>{id_found}</b> is {machine['Tool wear [min]']} minutes."
+        if any(k in query for k in ['torque', 'force', 'nm']):
+            return f"⚙️ The torque for machine <b>{id_found}</b> is currently {machine['Torque [Nm]']} Nm."
+        if any(k in query for k in ['risk', 'health', 'condition']):
+            return f"🛡️ The health status for machine <b>{id_found}</b> is currently: <b>{risk}</b>."
+        
+        # If no specific metric is found, return the full details block
+        return (f"📡 <b>Machine {id_found} Details:</b><br>"
+                f"• Type: {machine['Type']} | Status: {status}<br>"
+                f"• <b>Risk Status: {risk}</b><br>"
+                f"• Air Temp: {machine['Air temperature [K]']}K | Process Temp: {machine['Process temperature [K]']}K<br>"
+                f"• RPM: {machine['Rotational speed [rpm]']} | Torque: {machine['Torque [Nm]']}Nm<br>"
+                f"• Tool Wear: {machine['Tool wear [min]']}min | Failure: {machine['Failure Type']}")
+
+    # 3. If NO ID is found, try to find best matching general command using fuzzy matching
     command, score = find_best_command(query)
     
     if command is None:
-        # Check if it looks like a product ID search
-        words = query.split()
-        for word in words:
-            word_upper = word.upper()
-            if word_upper in df['Product ID'].values:
-                machine = df[df['Product ID'] == word_upper].iloc[0]
-                SESSION_CONTEXT['last_machine_id'] = word_upper
-                status = '🔴 Failed' if machine['Target'] == 1 else '🟢 Working'
-                risk = calculate_risk_status(machine)
-                
-                return (f"📡 <b>Machine {word_upper} Details:</b><br>"
-                        f"• Type: {machine['Type']} | Status: {status}<br>"
-                        f"• <b>Risk Status: {risk}</b><br>"
-                        f"• Air Temp: {machine['Air temperature [K]']}K | Process Temp: {machine['Process temperature [K]']}K<br>"
-                        f"• RPM: {machine['Rotational speed [rpm]']} | Torque: {machine['Torque [Nm]']}Nm<br>"
-                        f"• Tool Wear: {machine['Tool wear [min]']}min | Failure: {machine['Failure Type']}")
-
-        # Contextual follow-up logic
+        # Contextual follow-up logic (if user types "RPM?" after searching an ID previously)
         if SESSION_CONTEXT['last_machine_id']:
             mid = SESSION_CONTEXT['last_machine_id']
             machine = df[df['Product ID'] == mid].iloc[0]
