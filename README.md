@@ -4,7 +4,6 @@ InfraChat is an industrial management platform that bridges the gap between comp
 # Key Features
 
 Natural Language Interface (NLI): 
-
 Ask complex questions like "What is the RPM of Machine L47181?" and get instant, specific data retrieval.
 Intelligent Logic:
 Implements rapidfuzz for typo-tolerant command recognition and multi-variable extraction from single sentences.
