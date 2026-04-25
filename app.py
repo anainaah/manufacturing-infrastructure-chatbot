@@ -1,14 +1,10 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 import pandas as pd
 from rapidfuzz import fuzz, process
 
 app = Flask(__name__)
+app.secret_key = 'infrachat-secret-key-2024'
 df = pd.read_csv('data/predictive_maintenance.csv')
-
-# Simple in-memory session context (In a real app, use Flask sessions or a DB)
-SESSION_CONTEXT = {
-    'last_machine_id': None
-}
 
 def calculate_risk_status(machine):
     """Calculates a machine's health status based on sensor thresholds."""
@@ -108,10 +104,10 @@ def get_response(query):
         return (f"❌ <b>Machine ID '{potential_invalid_id}' was not found in our records.</b><br>"
                 f"Please verify the ID or type 'help' to see all available commands.")
 
-    # 2. If ID is found, handle machine-specific queries (including metrics)
+    # 2. If ID is found, handle machine-specific queries
     if id_found:
         machine = df[df['Product ID'] == id_found].iloc[0]
-        SESSION_CONTEXT['last_machine_id'] = id_found
+        session['last_machine_id'] = id_found
         status = '🔴 Failed' if machine['Target'] == 1 else '🟢 Working'
         risk = calculate_risk_status(machine)
 
@@ -135,25 +131,28 @@ def get_response(query):
                 f"• RPM: {machine['Rotational speed [rpm]']} | Torque: {machine['Torque [Nm]']}Nm<br>"
                 f"• Tool Wear: {machine['Tool wear [min]']}min | Failure: {machine['Failure Type']}")
 
-    # 3. If NO ID is found, try to find best matching general command using fuzzy matching
+    # 3. If NO ID found, check session context FIRST before fuzzy matching
+    # This ensures follow-up queries like "rpm", "temperature" resolve to the last machine
+    if session.get('last_machine_id'):
+        mid = session.get('last_machine_id')
+        machine = df[df['Product ID'] == mid].iloc[0]
+
+        if any(k in query for k in ['temp', 'heat', 'hot', 'temperature']):
+            return f"🌡️ The air temperature for machine <b>{mid}</b> is {machine['Air temperature [K]']}K and process temperature is {machine['Process temperature [K]']}K."
+        if any(k in query for k in ['rpm', 'speed', 'fast']):
+            return f"⚡ Machine <b>{mid}</b> is running at {machine['Rotational speed [rpm]']} RPM."
+        if any(k in query for k in ['wear', 'tool']):
+            return f"🔧 Current tool wear for machine <b>{mid}</b> is {machine['Tool wear [min]']} minutes."
+        if any(k in query for k in ['torque', 'force', 'nm']):
+            return f"⚙️ The torque for machine <b>{mid}</b> is currently {machine['Torque [Nm]']} Nm."
+        if any(k in query for k in ['risk', 'health', 'condition']):
+            risk = calculate_risk_status(machine)
+            return f"🛡️ The health status for machine <b>{mid}</b> is currently: <b>{risk}</b>."
+
+    # 4. Fall back to fuzzy matching for general commands
     command, score = find_best_command(query)
-    
+
     if command is None:
-        # Contextual follow-up logic (if user types "RPM?" after searching an ID previously)
-        if SESSION_CONTEXT['last_machine_id']:
-            mid = SESSION_CONTEXT['last_machine_id']
-            machine = df[df['Product ID'] == mid].iloc[0]
-            
-            if any(k in query for k in ['temp', 'heat', 'hot', 'temperature']):
-                return f"🌡️ The air temperature for machine <b>{mid}</b> is {machine['Air temperature [K]']}K and process temperature is {machine['Process temperature [K]']}K."
-            if any(k in query for k in ['rpm', 'speed', 'fast']):
-                return f"⚡ Machine <b>{mid}</b> is running at {machine['Rotational speed [rpm]']} RPM."
-            if any(k in query for k in ['wear', 'tool']):
-                return f"🔧 Current tool wear for machine <b>{mid}</b> is {machine['Tool wear [min]']} minutes."
-            if any(k in query for k in ['risk', 'health', 'condition']):
-                risk = calculate_risk_status(machine)
-                return f"🛡️ The health status for machine <b>{mid}</b> is currently: <b>{risk}</b>."
-        
         return "Sorry, I didn't understand that. Type 'help' to see available commands."
     
     # Process the matched command
